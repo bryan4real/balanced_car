@@ -119,8 +119,8 @@ float angle = 0.0f;
 float balance_offset = 0.0f;
 
 float Kp = 26.0f;
-float Ki = 0.0f;
-float Kd = 3.2f;
+float Ki = 100.0f;
+float Kd = 2.2f;
 
 float integral = 0.0f;
 

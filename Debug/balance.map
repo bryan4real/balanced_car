@@ -174,7 +174,7 @@ Discarded input sections
  .bss           0x0000000000000000        0x0 ./Core/Src/main.o
  .rodata.CHANNEL_OFFSET_TAB
                 0x0000000000000000        0x7 ./Core/Src/main.o
- .bss.Ki        0x0000000000000000        0x4 ./Core/Src/main.o
+ .data.Ki       0x0000000000000000        0x4 ./Core/Src/main.o
  .bss.debug_count
                 0x0000000000000000        0x4 ./Core/Src/main.o
  .text.Motor_Brake
