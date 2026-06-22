@@ -43,7 +43,7 @@
 #define MOTOR_DIR           1
 
 /* 馬達保護參數：TIM15 Period = 999，所以 PWM 建議控制在 0~999 內 */
-#define PWM_RUN_LIMIT       420
+#define PWM_RUN_LIMIT       320
 #define MOTOR_MIN_PWM       70
 #define PWM_DEAD_ZONE       2
 #define PWM_STEP_LIMIT      40
@@ -61,7 +61,7 @@
 #define NEAR_GYRO_DPS       0.6f
 
 /* 你的車最多 ±10 度，測試時先給 20 度保護 */
-#define ANGLE_STOP_LIMIT    25.0f
+#define ANGLE_STOP_LIMIT    90.0f
 
 #define BUTTON_PRESSED_LEVEL GPIO_PIN_RESET
 
