@@ -39,9 +39,9 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  17 .debug_line   0001560e  00000000  00000000  0005db26  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    000deb7a  00000000  00000000  00073134  2**0
+ 18 .debug_str    000deb7b  00000000  00000000  00073134  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000050  00000000  00000000  00151cae  2**0
+ 19 .comment      00000050  00000000  00000000  00151caf  2**0
                   CONTENTS, READONLY
  20 .debug_frame  00005938  00000000  00000000  00151d00  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
@@ -509,11 +509,11 @@ int PWM_Compensate(int pwm)
 
     if (value > PWM_RUN_LIMIT)
  8000608:	68bb      	ldr	r3, [r7, #8]
- 800060a:	f5b3 7fa0 	cmp.w	r3, #320	; 0x140
+ 800060a:	f5b3 7fc8 	cmp.w	r3, #400	; 0x190
  800060e:	dd02      	ble.n	8000616 <PWM_Compensate+0x42>
     {
         value = PWM_RUN_LIMIT;
- 8000610:	f44f 73a0 	mov.w	r3, #320	; 0x140
+ 8000610:	f44f 73c8 	mov.w	r3, #400	; 0x190
  8000614:	60bb      	str	r3, [r7, #8]
     }
 
@@ -2020,7 +2020,7 @@ int32_t Get_PWM(void)
     left_pwm = Limit_Int32(left_pwm, MOTOR_OUT_MAX);
  8001148:	4b19      	ldr	r3, [pc, #100]	; (80011b0 <Get_PWM+0x11c>)
  800114a:	681b      	ldr	r3, [r3, #0]
- 800114c:	f44f 71a0 	mov.w	r1, #320	; 0x140
+ 800114c:	f44f 71c8 	mov.w	r1, #400	; 0x190
  8001150:	4618      	mov	r0, r3
  8001152:	f7ff fdb5 	bl	8000cc0 <Limit_Int32>
  8001156:	4603      	mov	r3, r0
@@ -2029,7 +2029,7 @@ int32_t Get_PWM(void)
     right_pwm = Limit_Int32(right_pwm, MOTOR_OUT_MAX);
  800115c:	4b15      	ldr	r3, [pc, #84]	; (80011b4 <Get_PWM+0x120>)
  800115e:	681b      	ldr	r3, [r3, #0]
- 8001160:	f44f 71a0 	mov.w	r1, #320	; 0x140
+ 8001160:	f44f 71c8 	mov.w	r1, #400	; 0x190
  8001164:	4618      	mov	r0, r3
  8001166:	f7ff fdab 	bl	8000cc0 <Limit_Int32>
  800116a:	4603      	mov	r3, r0
@@ -2088,12 +2088,12 @@ void Motor_Proc(int32_t LEFT_MOTOR_OUT, int32_t RIGHT_MOTOR_OUT)
  80011dc:	6039      	str	r1, [r7, #0]
     /* 對應 GitHub motor_proc()：限制輸出，再依正負號控制左右馬達。 */
     LEFT_MOTOR_OUT = Limit_Int32(LEFT_MOTOR_OUT, MOTOR_OUT_MAX);
- 80011de:	f44f 71a0 	mov.w	r1, #320	; 0x140
+ 80011de:	f44f 71c8 	mov.w	r1, #400	; 0x190
  80011e2:	6878      	ldr	r0, [r7, #4]
  80011e4:	f7ff fd6c 	bl	8000cc0 <Limit_Int32>
  80011e8:	6078      	str	r0, [r7, #4]
     RIGHT_MOTOR_OUT = Limit_Int32(RIGHT_MOTOR_OUT, MOTOR_OUT_MAX);
- 80011ea:	f44f 71a0 	mov.w	r1, #320	; 0x140
+ 80011ea:	f44f 71c8 	mov.w	r1, #400	; 0x190
  80011ee:	6838      	ldr	r0, [r7, #0]
  80011f0:	f7ff fd66 	bl	8000cc0 <Limit_Int32>
  80011f4:	6038      	str	r0, [r7, #0]

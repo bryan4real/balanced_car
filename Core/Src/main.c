@@ -43,7 +43,7 @@
 #define MOTOR_DIR           1
 
 /* 馬達保護參數：TIM15 Period = 999，所以 PWM 建議控制在 0~999 內 */
-#define PWM_RUN_LIMIT       320
+#define PWM_RUN_LIMIT       400
 #define MOTOR_MIN_PWM       70
 #define PWM_DEAD_ZONE       2
 #define PWM_STEP_LIMIT      40
@@ -67,8 +67,8 @@
 
 /* 0 = 模仿 GitHub：連續輸出；1 = 短脈衝 + 煞車 */
 #define USE_MOTOR_PULSE     0
-#define MOTOR_ON_MS         3
-#define MOTOR_OFF_MS        15
+#define MOTOR_ON_MS         10
+#define MOTOR_OFF_MS        30
 
 /* GitHub control.c 的速度環、方向環週期概念；目前未接編碼器/循跡，預設輸出為 0 */
 #define VC_PERIOD           4
@@ -119,8 +119,8 @@ float angle = 0.0f;
 float balance_offset = 0.0f;
 
 float Kp = 23.0f;
-float Ki = 140.0f;
-float Kd = 0.8f;
+float Ki = 100.0f;
+float Kd = 2.8f;
 
 float integral = 0.0f;
 
