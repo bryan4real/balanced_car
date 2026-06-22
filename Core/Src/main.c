@@ -67,7 +67,7 @@
 
 /* 0 = 模仿 GitHub：連續輸出；1 = 短脈衝 + 煞車 */
 #define USE_MOTOR_PULSE     0
-#define MOTOR_ON_MS         4
+#define MOTOR_ON_MS         3
 #define MOTOR_OFF_MS        12
 
 /* GitHub control.c 的速度環、方向環週期概念；目前未接編碼器/循跡，預設輸出為 0 */
