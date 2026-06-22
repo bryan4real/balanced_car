@@ -118,9 +118,9 @@ float gyro_offset = 0.0f;
 float angle = 0.0f;
 float balance_offset = 0.0f;
 
-float Kp = 26.0f;
-float Ki = 100.0f;
-float Kd = 2.2f;
+float Kp = 25.0f;
+float Ki = 140.0f;
+float Kd = 1.2f;
 
 float integral = 0.0f;
 
