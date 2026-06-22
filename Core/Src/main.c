@@ -43,7 +43,7 @@
 #define MOTOR_DIR           1
 
 /* 馬達保護參數：TIM15 Period = 999，所以 PWM 建議控制在 0~999 內 */
-#define PWM_RUN_LIMIT       400
+#define PWM_RUN_LIMIT       420
 #define MOTOR_MIN_PWM       70
 #define PWM_DEAD_ZONE       2
 #define PWM_STEP_LIMIT      40
