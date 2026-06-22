@@ -68,7 +68,7 @@
 /* 0 = 模仿 GitHub：連續輸出；1 = 短脈衝 + 煞車 */
 #define USE_MOTOR_PULSE     0
 #define MOTOR_ON_MS         3
-#define MOTOR_OFF_MS        12
+#define MOTOR_OFF_MS        15
 
 /* GitHub control.c 的速度環、方向環週期概念；目前未接編碼器/循跡，預設輸出為 0 */
 #define VC_PERIOD           4
@@ -118,9 +118,9 @@ float gyro_offset = 0.0f;
 float angle = 0.0f;
 float balance_offset = 0.0f;
 
-float Kp = 25.0f;
+float Kp = 23.0f;
 float Ki = 140.0f;
-float Kd = 1.2f;
+float Kd = 0.8f;
 
 float integral = 0.0f;
 
