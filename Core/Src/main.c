@@ -37,7 +37,7 @@
 #define CONTROL_DT          0.005f
 
 /* 1 = 關閉平衡，只測兩顆 TCRT5000 循跡；0 = 原本平衡循跡 */
-#define LINE_ONLY_TEST_MODE  1
+#define LINE_ONLY_TEST_MODE  0
 
 #define MPU_ADDR_68         (0x68 << 1)
 #define MPU_ADDR_69         (0x69 << 1)
@@ -47,9 +47,9 @@
 
 /* 馬達保護參數：TIM15 Period = 999，所以 PWM 建議控制在 0~999 內 */
 #define PWM_RUN_LIMIT       420
-#define MOTOR_MIN_PWM       95
+#define MOTOR_MIN_PWM       85
 #define PWM_DEAD_ZONE       2
-#define PWM_STEP_LIMIT      999
+#define PWM_STEP_LIMIT      45
 #define MOTOR_OUT_MAX       PWM_RUN_LIMIT
 
 /* MPU6050：Accel ±2g = 16384 LSB/g；Gyro ±250 dps = 131 LSB/(deg/s) */
@@ -79,9 +79,9 @@
 #define LINE_BLACK_LEVEL     GPIO_PIN_RESET
 #define LINE_ERROR_VALUE     25
 
-/* 沒有編碼器時，用一點點前進 PWM 讓車子沿線慢慢走。
-   如果平衡還不穩，先改成 0。 */
-#define BASE_FORWARD_PWM     40
+/* 平衡 + 循跡模式前進量：
+   第一次測平衡建議先用 0；能站穩後再改 8~15 讓它慢慢前進。 */
+#define BASE_FORWARD_PWM     0
 
 /* 實用循跡模式參數：
    兩顆 TCRT5000 放在黑線左右兩側時：
@@ -115,7 +115,7 @@
 #define LINE_RECOVER_MS      300
 
 /* 你的車最多 ±10 度，測試時先給 20 度保護 */
-#define ANGLE_STOP_LIMIT    25.0f
+#define ANGLE_STOP_LIMIT    18.0f
 
 #define BUTTON_PRESSED_LEVEL GPIO_PIN_RESET
 
@@ -128,7 +128,7 @@
 #define VC_PERIOD           4
 #define DC_PERIOD           2
 #define VC_OUT_MAX          120
-#define DC_OUT_MAX           25
+#define DC_OUT_MAX           0
 
 /* 速度環 PID：沒有編碼器前先設 0，等於保留功能但不介入 */
 #define VC_PID_P            0.0f
@@ -136,7 +136,7 @@
 #define VC_PID_D            0.0f
 
 /* 方向環 PID：沒有方向誤差來源前先設 0，等於保留功能但不介入 */
-#define DC_PID_P             0.8f
+#define DC_PID_P             0.0f
 #define DC_PID_D             0.0f
 
 /* USER CODE END PD */
@@ -583,7 +583,7 @@ static int32_t Angle_PID(float set, float nextPoint)
     float P = Kp * error;
     float D = Kd * gyro_balance;
 
-    return (int32_t)(P - D);
+    return (int32_t)(P*1.5 - D);
 }
 
 int32_t Angle_Proc(void)
@@ -656,39 +656,35 @@ static int32_t Direction_PID(float dc_p, float dc_d)
 
 int32_t Direction_Proc(int32_t now_speed)
 {
-    /* 對應 GitHub：方向環每 DC_PERIOD 次更新一次 */
-    static uint8_t count = 0;
-    static int32_t DC_Out_Old = 0, DC_Out_New = 0;
-    int32_t DC_Out;
-
-    if (count >= DC_PERIOD)
-    {
-        count = 0;
-        DC_Out_Old = DC_Out_New;
-        DC_Out_New = Direction_PID(DC_PID_P, DC_PID_D);
-        DC_Out_New = Limit_Int32(DC_Out_New, DC_OUT_MAX);
-    }
-
-    count++;
-    DC_Out = DC_Out_Old + (DC_Out_New - DC_Out_Old) * count / DC_PERIOD;
-
-    return DC_Out;
+    /*
+      平衡-only 模式：
+      暫時拿掉循跡修正，不讀 TCRT5000，不做左右差速。
+    */
+    (void)now_speed;
+    state = 0;
+    line_l_black = 0;
+    line_r_black = 0;
+    dc_pwm = 0;
+    return 0;
 }
 
 int32_t Get_PWM(void)
 {
-    /* 對應 GitHub get_pwm()：
-       get_mpu(); speed=get_speed(); ac=angle; vc=velocity; dc=direction;
-       left = ac - vc + dc; right = ac - vc - dc; */
+    /*
+      平衡-only 模式：
+      只用 MPU6050 的角度環 ac_pwm 控制左右輪。
+      不加入循跡 dc_pwm，也不加入前進 BASE_FORWARD_PWM。
+    */
+
     MPU_Update_Angle();
 
-    speed = Get_Speed();
+    speed = 0;
     ac_pwm = Angle_Proc();
-    vc_pwm = Velocity_Proc(speed);
-    dc_pwm = Direction_Proc(speed);
+    vc_pwm = 0;
+    dc_pwm = 0;
 
-    left_pwm  = ac_pwm - vc_pwm + BASE_FORWARD_PWM + dc_pwm;
-    right_pwm = ac_pwm - vc_pwm + BASE_FORWARD_PWM - dc_pwm;
+    left_pwm  = ac_pwm;
+    right_pwm = ac_pwm;
 
     float error = angle - balance_offset;
 
@@ -928,7 +924,6 @@ void Balance_Control(void)
             angle_filter_ready = 1;
             motor_enable = 1;
 
-            /* 重置 GitHub-style 控制輸出 */
             speed = 0;
             ac_pwm = 0;
             vc_pwm = 0;
@@ -938,10 +933,10 @@ void Balance_Control(void)
             last_left_pwm = 0;
             last_right_pwm = 0;
 
-            printf("MOTOR ARMED, offset_x100=%ld\r\n",
+            printf("BALANCE ONLY START, offset_x100=%ld\r\n",
                    (long)(balance_offset * 100));
 
-            HAL_Delay(300);   // 簡單防彈跳
+            HAL_Delay(300);
         }
 
         return;
@@ -971,17 +966,12 @@ void Balance_Control(void)
     {
         last_debug_time = HAL_GetTick();
 
-        printf("angle_x100=%ld offset_x100=%ld error_x100=%ld gyro_x100=%ld lineL=%d lineR=%d state=%d ac=%ld vc=%ld dc=%ld L=%ld R=%ld AX=%d AY=%d AZ=%d GX=%d GY=%d GZ=%d ok=%lu fail=%lu st=%u\r\n",
+        printf("BAL_ONLY angle_x100=%ld offset_x100=%ld error_x100=%ld gyro_x100=%ld ac=%ld L=%ld R=%ld AX=%d AY=%d AZ=%d GX=%d GY=%d GZ=%d ok=%lu fail=%lu st=%u\r\n",
                (long)(angle * 100),
                (long)(balance_offset * 100),
                (long)(error * 100),
                (long)(gyro_balance * 100),
-               line_l_black,
-               line_r_black,
-               state,
                (long)ac_pwm,
-               (long)vc_pwm,
-               (long)dc_pwm,
                (long)left_pwm,
                (long)right_pwm,
                Accel_X_RAW, Accel_Y_RAW, Accel_Z_RAW,
@@ -1086,6 +1076,7 @@ int main(void)
 #if LINE_ONLY_TEST_MODE
   printf("Line only test mode: balance OFF, MPU not used\r\n");
 #else
+  printf("Balance only mode: MPU used, line follow OFF\r\n");
   MPU_Init();
   MPU_Calibrate_Gyro();
 #endif
