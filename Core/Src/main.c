@@ -49,7 +49,7 @@
 #define PWM_RUN_LIMIT       420
 #define MOTOR_MIN_PWM       70
 #define PWM_DEAD_ZONE       2
-#define PWM_STEP_LIMIT      40
+#define PWM_STEP_LIMIT      999
 #define MOTOR_OUT_MAX       PWM_RUN_LIMIT
 
 /* MPU6050：Accel ±2g = 16384 LSB/g；Gyro ±250 dps = 131 LSB/(deg/s) */
@@ -77,11 +77,35 @@
 #define LINE_RIGHT_Pin       GPIO_PIN_1
 
 #define LINE_BLACK_LEVEL     GPIO_PIN_RESET
-#define LINE_ERROR_VALUE    25
+#define LINE_ERROR_VALUE     25
 
 /* 沒有編碼器時，用一點點前進 PWM 讓車子沿線慢慢走。
    如果平衡還不穩，先改成 0。 */
-#define BASE_FORWARD_PWM    30
+#define BASE_FORWARD_PWM     22
+
+/* 實用循跡模式參數：
+   兩顆 TCRT5000 放在黑線左右兩側時：
+   - 兩顆都白：代表黑線在中間，直走
+   - 左黑：線偏左，左輪慢、右輪快
+   - 右黑：線偏右，左輪快、右輪慢
+   - 兩顆都黑：交叉線/粗線，慢速直走
+*/
+#define LINE_SLOW_PWM        -10
+#define LINE_FAST_PWM        55
+#define LINE_BOTH_BLACK_PWM  20
+
+/* 0：兩顆都白時直走，適合兩顆感測器夾著黑線
+   1：兩顆都白時停止，適合測試感測器用 */
+#define LINE_STOP_BOTH_WHITE 0
+
+/* 如果左黑卻往右修、右黑卻往左修，把 0 改成 1 */
+#define LINE_REVERSE_STEER   0
+
+/* 掉線短暫救回：
+   偵測到左/右黑線後，如果瞬間又變成兩顆都白，
+   代表可能已經衝過邊界，短時間繼續往剛才方向修正。 */
+#define LINE_RECOVER_PWM     45
+#define LINE_RECOVER_MS      250
 
 /* 你的車最多 ±10 度，測試時先給 20 度保護 */
 #define ANGLE_STOP_LIMIT    25.0f
@@ -97,7 +121,7 @@
 #define VC_PERIOD           4
 #define DC_PERIOD           2
 #define VC_OUT_MAX          120
-#define DC_OUT_MAX          25
+#define DC_OUT_MAX           25
 
 /* 速度環 PID：沒有編碼器前先設 0，等於保留功能但不介入 */
 #define VC_PID_P            0.0f
@@ -105,8 +129,8 @@
 #define VC_PID_D            0.0f
 
 /* 方向環 PID：沒有方向誤差來源前先設 0，等於保留功能但不介入 */
-#define DC_PID_P            0.8f
-#define DC_PID_D            0.0f
+#define DC_PID_P             0.8f
+#define DC_PID_D             0.0f
 
 /* USER CODE END PD */
 
@@ -514,17 +538,22 @@ int32_t Get_Speed(void)
 int16_t Get_Direction_Error(void)
 {
     /*
-      兩顆 TCRT5000 循跡邏輯：
-      - 左看到黑線：往左修，error = 負
-      - 右看到黑線：往右修，error = 正
-      - 兩顆都沒看到 / 都看到：先直走，不使用上一次方向，避免一開機單邊輪一直動
+      讀取兩顆 TCRT5000：
+      line_l_black / line_r_black：
+      1 = 看到黑線
+      0 = 沒看到黑線
+
+      state：
+      -25 = 左邊看到黑線
+       25 = 右邊看到黑線
+        0 = 中間/交叉/沒有明確偏差
     */
 
     line_l_raw = HAL_GPIO_ReadPin(LINE_LEFT_GPIO_Port, LINE_LEFT_Pin);
     line_r_raw = HAL_GPIO_ReadPin(LINE_RIGHT_GPIO_Port, LINE_RIGHT_Pin);
 
-    line_l_black = (line_l_raw == LINE_BLACK_LEVEL);
-    line_r_black = (line_r_raw == LINE_BLACK_LEVEL);
+    line_l_black = (line_l_raw == LINE_BLACK_LEVEL) ? 1 : 0;
+    line_r_black = (line_r_raw == LINE_BLACK_LEVEL) ? 1 : 0;
 
     if (line_l_black && !line_r_black)
     {
@@ -698,51 +727,148 @@ void Motor_Proc(int32_t LEFT_MOTOR_OUT, int32_t RIGHT_MOTOR_OUT)
 void Line_Only_Control(void)
 {
     /*
-      平衡關閉測試模式：
-      - 不讀 MPU 角度
-      - 只測兩顆 TCRT5000 循跡
-      - 一開機不會自己用上一次方向亂轉
-      - 按藍色按鈕後開始跑
+      反應加快版循跡：
+      - 前進速度降低
+      - 偵測到偏左/偏右時，內側輪可小幅反轉，轉向更快
+      - 兩顆都白時，不是一直高速直衝，而是慢速前進
+      - 剛剛才看到左/右線，接著變兩顆都白時，短時間繼續往同方向救回
     */
+
+    static uint8_t last_button_pressed = 0;
+    static int8_t last_turn_dir = 0;          // -1 = 左，1 = 右，0 = 無
+    static uint32_t last_line_time = 0;
+
+    uint32_t now = HAL_GetTick();
+    uint8_t button_now = Button_IsPressed();
+
+    /* 藍色按鈕：按一下開始，再按一下停止 */
+    if (button_now && !last_button_pressed)
+    {
+        motor_enable = !motor_enable;
+
+        dc_pwm = 0;
+        left_pwm = 0;
+        right_pwm = 0;
+        last_left_pwm = 0;
+        last_right_pwm = 0;
+        last_turn_dir = 0;
+        last_line_time = now;
+
+        if (motor_enable)
+        {
+            printf("LINE FOLLOW START\r\n");
+        }
+        else
+        {
+            Motor_Stop();
+            printf("LINE FOLLOW STOP\r\n");
+        }
+
+        HAL_Delay(250);
+    }
+
+    last_button_pressed = button_now;
+
+    /* 持續讀取循跡感測器 */
+    state = Get_Direction_Error();
 
     if (motor_enable == 0)
     {
         Motor_Stop();
-
-        /* 未啟動時也持續讀線，方便看 Tera Term */
-        state = Get_Direction_Error();
-
-        if (Button_IsPressed())
-        {
-            motor_enable = 1;
-
-            dc_pwm = 0;
-            left_pwm = 0;
-            right_pwm = 0;
-            last_left_pwm = 0;
-            last_right_pwm = 0;
-
-            printf("LINE ONLY MODE START\r\n");
-            HAL_Delay(300);
-        }
+        left_pwm = 0;
+        right_pwm = 0;
+        dc_pwm = 0;
     }
     else
     {
-        speed = 0;
-        ac_pwm = 0;
-        vc_pwm = 0;
-        dc_pwm = Direction_Proc(speed);
+        if (line_l_black && !line_r_black)
+        {
+            /* 線在左邊：立刻往左修 */
+            last_turn_dir = -1;
+            last_line_time = now;
 
-        /*
-          左看到線：state 負，dc_pwm 負，左輪變慢、右輪變快，車往左修
-          右看到線：state 正，dc_pwm 正，左輪變快、右輪變慢，車往右修
-        */
-        left_pwm  = BASE_FORWARD_PWM + dc_pwm;
-        right_pwm = BASE_FORWARD_PWM - dc_pwm;
+#if LINE_REVERSE_STEER
+            left_pwm  = LINE_FAST_PWM;
+            right_pwm = LINE_SLOW_PWM;
+#else
+            left_pwm  = LINE_SLOW_PWM;
+            right_pwm = LINE_FAST_PWM;
+#endif
+        }
+        else if (!line_l_black && line_r_black)
+        {
+            /* 線在右邊：立刻往右修 */
+            last_turn_dir = 1;
+            last_line_time = now;
+
+#if LINE_REVERSE_STEER
+            left_pwm  = LINE_SLOW_PWM;
+            right_pwm = LINE_FAST_PWM;
+#else
+            left_pwm  = LINE_FAST_PWM;
+            right_pwm = LINE_SLOW_PWM;
+#endif
+        }
+        else if (line_l_black && line_r_black)
+        {
+            /* 兩顆都黑：可能是粗線或交叉線，慢慢直走 */
+            left_pwm  = LINE_BOTH_BLACK_PWM;
+            right_pwm = LINE_BOTH_BLACK_PWM;
+        }
+        else
+        {
+            /*
+              兩顆都白：
+              正常直線時代表黑線在兩顆中間，所以慢速直走。
+              但如果剛剛才看過左/右黑線，代表可能衝過線，短時間繼續救回。
+            */
+            if ((now - last_line_time) < LINE_RECOVER_MS)
+            {
+                if (last_turn_dir < 0)
+                {
+#if LINE_REVERSE_STEER
+                    left_pwm  = LINE_RECOVER_PWM;
+                    right_pwm = 0;
+#else
+                    left_pwm  = 0;
+                    right_pwm = LINE_RECOVER_PWM;
+#endif
+                }
+                else if (last_turn_dir > 0)
+                {
+#if LINE_REVERSE_STEER
+                    left_pwm  = 0;
+                    right_pwm = LINE_RECOVER_PWM;
+#else
+                    left_pwm  = LINE_RECOVER_PWM;
+                    right_pwm = 0;
+#endif
+                }
+                else
+                {
+                    left_pwm  = BASE_FORWARD_PWM;
+                    right_pwm = BASE_FORWARD_PWM;
+                }
+            }
+            else
+            {
+#if LINE_STOP_BOTH_WHITE
+                left_pwm  = 0;
+                right_pwm = 0;
+#else
+                left_pwm  = BASE_FORWARD_PWM;
+                right_pwm = BASE_FORWARD_PWM;
+#endif
+            }
+        }
 
         left_pwm = Limit_Int32(left_pwm, MOTOR_OUT_MAX);
         right_pwm = Limit_Int32(right_pwm, MOTOR_OUT_MAX);
 
+        /*
+          循跡測試要反應快，所以 PWM_STEP_LIMIT 已改大，
+          Smooth_PWM 幾乎等於直接輸出。
+        */
         left_pwm = Smooth_PWM(left_pwm, &last_left_pwm);
         right_pwm = Smooth_PWM(right_pwm, &last_right_pwm);
 
@@ -755,13 +881,14 @@ void Line_Only_Control(void)
     {
         last_debug_time = HAL_GetTick();
 
-        printf("LINE_ONLY rawL=%d rawR=%d lineL=%d lineR=%d state=%d dc=%ld L=%ld R=%ld\r\n",
+        printf("LINE rawL=%d rawR=%d lineL=%d lineR=%d state=%d enable=%d last=%d L=%ld R=%ld\r\n",
                line_l_raw,
                line_r_raw,
                line_l_black,
                line_r_black,
                state,
-               (long)dc_pwm,
+               motor_enable,
+               last_turn_dir,
                (long)left_pwm,
                (long)right_pwm);
     }
