@@ -36,6 +36,9 @@
 
 #define CONTROL_DT          0.005f
 
+/* 1 = 關閉平衡，只測兩顆 TCRT5000 循跡；0 = 原本平衡循跡 */
+#define LINE_ONLY_TEST_MODE  1
+
 #define MPU_ADDR_68         (0x68 << 1)
 #define MPU_ADDR_69         (0x69 << 1)
 
@@ -43,7 +46,7 @@
 #define MOTOR_DIR           1
 
 /* 馬達保護參數：TIM15 Period = 999，所以 PWM 建議控制在 0~999 內 */
-#define PWM_RUN_LIMIT       400
+#define PWM_RUN_LIMIT       420
 #define MOTOR_MIN_PWM       70
 #define PWM_DEAD_ZONE       2
 #define PWM_STEP_LIMIT      40
@@ -60,21 +63,41 @@
 #define NEAR_BALANCE_DEG    0.08f
 #define NEAR_GYRO_DPS       0.6f
 
+/* 兩顆 TCRT5000 循跡設定
+   預設接線：
+   左循跡 DO -> PC0
+   右循跡 DO -> PC1
+
+   多數 TCRT5000 模組黑線時 DO = RESET，如果你的模組相反，
+   把 LINE_BLACK_LEVEL 改成 GPIO_PIN_SET。
+*/
+#define LINE_LEFT_GPIO_Port  GPIOC
+#define LINE_LEFT_Pin        GPIO_PIN_0
+#define LINE_RIGHT_GPIO_Port GPIOC
+#define LINE_RIGHT_Pin       GPIO_PIN_1
+
+#define LINE_BLACK_LEVEL     GPIO_PIN_RESET
+#define LINE_ERROR_VALUE    25
+
+/* 沒有編碼器時，用一點點前進 PWM 讓車子沿線慢慢走。
+   如果平衡還不穩，先改成 0。 */
+#define BASE_FORWARD_PWM    30
+
 /* 你的車最多 ±10 度，測試時先給 20 度保護 */
-#define ANGLE_STOP_LIMIT    90.0f
+#define ANGLE_STOP_LIMIT    25.0f
 
 #define BUTTON_PRESSED_LEVEL GPIO_PIN_RESET
 
 /* 0 = 模仿 GitHub：連續輸出；1 = 短脈衝 + 煞車 */
 #define USE_MOTOR_PULSE     0
-#define MOTOR_ON_MS         10
-#define MOTOR_OFF_MS        30
+#define MOTOR_ON_MS         4
+#define MOTOR_OFF_MS        12
 
 /* GitHub control.c 的速度環、方向環週期概念；目前未接編碼器/循跡，預設輸出為 0 */
 #define VC_PERIOD           4
 #define DC_PERIOD           2
 #define VC_OUT_MAX          120
-#define DC_OUT_MAX          120
+#define DC_OUT_MAX          25
 
 /* 速度環 PID：沒有編碼器前先設 0，等於保留功能但不介入 */
 #define VC_PID_P            0.0f
@@ -82,7 +105,7 @@
 #define VC_PID_D            0.0f
 
 /* 方向環 PID：沒有方向誤差來源前先設 0，等於保留功能但不介入 */
-#define DC_PID_P            0.0f
+#define DC_PID_P            0.8f
 #define DC_PID_D            0.0f
 
 /* USER CODE END PD */
@@ -118,9 +141,9 @@ float gyro_offset = 0.0f;
 float angle = 0.0f;
 float balance_offset = 0.0f;
 
-float Kp = 23.0f;
-float Ki = 100.0f;
-float Kd = 2.8f;
+float Kp = 26.0f;
+float Ki = 0.0f;
+float Kd = 3.2f;
 
 float integral = 0.0f;
 
@@ -137,6 +160,10 @@ uint32_t debug_count = 0;
 /* GitHub control.c 同功能架構：ac=角度環、vc=速度環、dc=方向環 */
 int32_t speed = 0;
 int16_t state = 0;
+uint8_t line_l_black = 0;
+uint8_t line_r_black = 0;
+GPIO_PinState line_l_raw = GPIO_PIN_RESET;
+GPIO_PinState line_r_raw = GPIO_PIN_RESET;
 int32_t ac_pwm = 0;
 int32_t vc_pwm = 0;
 int32_t dc_pwm = 0;
@@ -165,6 +192,7 @@ void Motor_Brake(void);
 void Motor_Set(int left_pwm, int right_pwm);
 void Motor_Set_Gated(int left_pwm, int right_pwm);
 void Motor_Proc(int32_t LEFT_MOTOR_OUT, int32_t RIGHT_MOTOR_OUT);
+void Line_Only_Control(void);
 
 int32_t Get_PWM(void);
 int32_t Smooth_PWM(int32_t target, int32_t *last);
@@ -485,9 +513,31 @@ int32_t Get_Speed(void)
 
 int16_t Get_Direction_Error(void)
 {
-    /* GitHub 原本會讀循跡/方向誤差。
-       你目前尚未接入 TCRT5000 方向誤差，所以先回傳 0，方向環功能保留但不介入。 */
-    return 0;
+    /*
+      兩顆 TCRT5000 循跡邏輯：
+      - 左看到黑線：往左修，error = 負
+      - 右看到黑線：往右修，error = 正
+      - 兩顆都沒看到 / 都看到：先直走，不使用上一次方向，避免一開機單邊輪一直動
+    */
+
+    line_l_raw = HAL_GPIO_ReadPin(LINE_LEFT_GPIO_Port, LINE_LEFT_Pin);
+    line_r_raw = HAL_GPIO_ReadPin(LINE_RIGHT_GPIO_Port, LINE_RIGHT_Pin);
+
+    line_l_black = (line_l_raw == LINE_BLACK_LEVEL);
+    line_r_black = (line_r_raw == LINE_BLACK_LEVEL);
+
+    if (line_l_black && !line_r_black)
+    {
+        return -LINE_ERROR_VALUE;
+    }
+    else if (!line_l_black && line_r_black)
+    {
+        return LINE_ERROR_VALUE;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 static int32_t Angle_PID(float set, float nextPoint)
@@ -556,16 +606,16 @@ int32_t Velocity_Proc(int32_t now_speed)
 
 static int32_t Direction_PID(float dc_p, float dc_d)
 {
-    /* 對應 GitHub：P 使用方向誤差，D 使用 Z 軸角速度。
-       目前方向誤差為 0 且 DC_PID_* 為 0，所以 dc_pwm 預設為 0。 */
-    int32_t P, D;
-
+    /*
+      方向環簡化版：
+      先只用 P，不用 D，避免循跡測試時一邊輪子突然衝太大。
+    */
     state = Get_Direction_Error();
 
-    P = (int32_t)(dc_p * state / 25.0f);
-    D = (int32_t)(dc_d * Gz / 100.0f);
+    int32_t P = (int32_t)(dc_p * state);
+    P = Limit_Int32(P, DC_OUT_MAX);
 
-    return P + D;
+    return P;
 }
 
 int32_t Direction_Proc(int32_t now_speed)
@@ -601,8 +651,8 @@ int32_t Get_PWM(void)
     vc_pwm = Velocity_Proc(speed);
     dc_pwm = Direction_Proc(speed);
 
-    left_pwm  = ac_pwm - vc_pwm + dc_pwm;
-    right_pwm = ac_pwm - vc_pwm - dc_pwm;
+    left_pwm  = ac_pwm - vc_pwm + BASE_FORWARD_PWM + dc_pwm;
+    right_pwm = ac_pwm - vc_pwm + BASE_FORWARD_PWM - dc_pwm;
 
     float error = angle - balance_offset;
 
@@ -642,6 +692,79 @@ void Motor_Proc(int32_t LEFT_MOTOR_OUT, int32_t RIGHT_MOTOR_OUT)
 #else
     Motor_Set((int)LEFT_MOTOR_OUT, (int)RIGHT_MOTOR_OUT);
 #endif
+}
+
+
+void Line_Only_Control(void)
+{
+    /*
+      平衡關閉測試模式：
+      - 不讀 MPU 角度
+      - 只測兩顆 TCRT5000 循跡
+      - 一開機不會自己用上一次方向亂轉
+      - 按藍色按鈕後開始跑
+    */
+
+    if (motor_enable == 0)
+    {
+        Motor_Stop();
+
+        /* 未啟動時也持續讀線，方便看 Tera Term */
+        state = Get_Direction_Error();
+
+        if (Button_IsPressed())
+        {
+            motor_enable = 1;
+
+            dc_pwm = 0;
+            left_pwm = 0;
+            right_pwm = 0;
+            last_left_pwm = 0;
+            last_right_pwm = 0;
+
+            printf("LINE ONLY MODE START\r\n");
+            HAL_Delay(300);
+        }
+    }
+    else
+    {
+        speed = 0;
+        ac_pwm = 0;
+        vc_pwm = 0;
+        dc_pwm = Direction_Proc(speed);
+
+        /*
+          左看到線：state 負，dc_pwm 負，左輪變慢、右輪變快，車往左修
+          右看到線：state 正，dc_pwm 正，左輪變快、右輪變慢，車往右修
+        */
+        left_pwm  = BASE_FORWARD_PWM + dc_pwm;
+        right_pwm = BASE_FORWARD_PWM - dc_pwm;
+
+        left_pwm = Limit_Int32(left_pwm, MOTOR_OUT_MAX);
+        right_pwm = Limit_Int32(right_pwm, MOTOR_OUT_MAX);
+
+        left_pwm = Smooth_PWM(left_pwm, &last_left_pwm);
+        right_pwm = Smooth_PWM(right_pwm, &last_right_pwm);
+
+        Motor_Proc(left_pwm, right_pwm);
+    }
+
+    static uint32_t last_debug_time = 0;
+
+    if (HAL_GetTick() - last_debug_time >= 200)
+    {
+        last_debug_time = HAL_GetTick();
+
+        printf("LINE_ONLY rawL=%d rawR=%d lineL=%d lineR=%d state=%d dc=%ld L=%ld R=%ld\r\n",
+               line_l_raw,
+               line_r_raw,
+               line_l_black,
+               line_r_black,
+               state,
+               (long)dc_pwm,
+               (long)left_pwm,
+               (long)right_pwm);
+    }
 }
 
 void Balance_Control(void)
@@ -703,11 +826,14 @@ void Balance_Control(void)
     {
         last_debug_time = HAL_GetTick();
 
-        printf("angle_x100=%ld offset_x100=%ld error_x100=%ld gyro_x100=%ld ac=%ld vc=%ld dc=%ld L=%ld R=%ld AX=%d AY=%d AZ=%d GX=%d GY=%d GZ=%d ok=%lu fail=%lu st=%u\r\n",
+        printf("angle_x100=%ld offset_x100=%ld error_x100=%ld gyro_x100=%ld lineL=%d lineR=%d state=%d ac=%ld vc=%ld dc=%ld L=%ld R=%ld AX=%d AY=%d AZ=%d GX=%d GY=%d GZ=%d ok=%lu fail=%lu st=%u\r\n",
                (long)(angle * 100),
                (long)(balance_offset * 100),
                (long)(error * 100),
                (long)(gyro_balance * 100),
+               line_l_black,
+               line_r_black,
+               state,
                (long)ac_pwm,
                (long)vc_pwm,
                (long)dc_pwm,
@@ -812,8 +938,12 @@ int main(void)
 
   Motor_Stop();
 
+#if LINE_ONLY_TEST_MODE
+  printf("Line only test mode: balance OFF, MPU not used\r\n");
+#else
   MPU_Init();
   MPU_Calibrate_Gyro();
+#endif
 
 
   //HAL_TIM_Base_Start_IT(&htim6);
@@ -831,7 +961,11 @@ int main(void)
     	     if (HAL_GetTick() - last_control_time >= 5)
     	     {
     	         last_control_time = HAL_GetTick();
-    	         Balance_Control();
+    	         #if LINE_ONLY_TEST_MODE
+                 Line_Only_Control();
+#else
+                 Balance_Control();
+#endif
     	     }
     /* USER CODE END WHILE */
 
@@ -1119,6 +1253,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : LINE_LEFT_Pin LINE_RIGHT_Pin */
+  GPIO_InitStruct.Pin = LINE_LEFT_Pin|LINE_RIGHT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : AIN1_Pin AIN2_Pin BIN1_Pin BIN2_Pin */
   GPIO_InitStruct.Pin = AIN1_Pin|AIN2_Pin|BIN1_Pin|BIN2_Pin;
