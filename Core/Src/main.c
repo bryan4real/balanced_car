@@ -81,7 +81,7 @@
 
 /* 沒有編碼器時，用一點點前進 PWM 讓車子沿線慢慢走。
    如果平衡還不穩，先改成 0。 */
-#define BASE_FORWARD_PWM     45
+#define BASE_FORWARD_PWM     40
 
 /* 實用循跡模式參數：
    兩顆 TCRT5000 放在黑線左右兩側時：
@@ -90,9 +90,13 @@
    - 右黑：線偏右，左輪快、右輪慢
    - 兩顆都黑：交叉線/粗線，慢速直走
 */
-#define LINE_SLOW_PWM        35
-#define LINE_FAST_PWM        115
-#define LINE_BOTH_BLACK_PWM  45
+#define LINE_SLOW_PWM        0
+#define LINE_FAST_PWM        60
+
+/* 偵測到黑線時使用：
+   一邊輪停止，另一邊輪用這個 PWM 慢慢轉彎 */
+#define LINE_TURN_PWM        60
+#define LINE_BOTH_BLACK_PWM  25
 
 /* 0：兩顆都白時直走，適合兩顆感測器夾著黑線
    1：兩顆都白時停止，適合測試感測器用 */
@@ -107,7 +111,7 @@
 /* 掉線短暫救回：
    偵測到左/右黑線後，如果瞬間又變成兩顆都白，
    代表可能已經衝過邊界，短時間繼續往剛才方向修正。 */
-#define LINE_RECOVER_PWM     95
+#define LINE_RECOVER_PWM     45
 #define LINE_RECOVER_MS      300
 
 /* 你的車最多 ±10 度，測試時先給 20 度保護 */
@@ -730,11 +734,13 @@ void Motor_Proc(int32_t LEFT_MOTOR_OUT, int32_t RIGHT_MOTOR_OUT)
 void Line_Only_Control(void)
 {
     /*
-      反應加快版循跡：
-      - 前進速度降低
-      - 偵測到偏左/偏右時，內側輪保持低速正轉，避免某一輪反轉通道不正常導致不動
-      - 兩顆都白時，不是一直高速直衝，而是慢速前進
-      - 剛剛才看到左/右線，接著變兩顆都白時，短時間繼續往同方向救回
+      慢速過彎循跡版：
+      - 平衡關閉，只用兩顆 TCRT5000
+      - 藍色按鈕：按一下開始，再按一下停止
+      - 兩顆都白：直走
+      - 左邊偵測到黑線：左輪停止，右輪慢慢轉，往左修
+      - 右邊偵測到黑線：右輪停止，左輪慢慢轉，往右修
+      - 兩顆都黑：慢速直走
     */
 
     static uint8_t last_button_pressed = 0;
@@ -759,7 +765,7 @@ void Line_Only_Control(void)
 
         if (motor_enable)
         {
-            printf("LINE FOLLOW START - POSITIVE ONLY VERSION\r\n");
+            printf("LINE FOLLOW START - SLOW TURN VERSION\r\n");
         }
         else
         {
@@ -786,35 +792,44 @@ void Line_Only_Control(void)
     {
         if (line_l_black && !line_r_black)
         {
-            /* 線在左邊：立刻往左修 */
+            /*
+              左邊看到黑線：
+              左輪停止、右輪慢轉，讓車慢慢往左修正
+            */
             last_turn_dir = -1;
             last_line_time = now;
 
 #if LINE_REVERSE_STEER
-            left_pwm  = LINE_FAST_PWM;
-            right_pwm = LINE_SLOW_PWM;
+            left_pwm  = LINE_TURN_PWM;
+            right_pwm = 0;
 #else
-            left_pwm  = LINE_SLOW_PWM;
-            right_pwm = LINE_FAST_PWM;
+            left_pwm  = 0;
+            right_pwm = LINE_TURN_PWM;
 #endif
         }
         else if (!line_l_black && line_r_black)
         {
-            /* 線在右邊：立刻往右修 */
+            /*
+              右邊看到黑線：
+              右輪停止、左輪慢轉，讓車慢慢往右修正
+            */
             last_turn_dir = 1;
             last_line_time = now;
 
 #if LINE_REVERSE_STEER
-            left_pwm  = LINE_SLOW_PWM;
-            right_pwm = LINE_FAST_PWM;
+            left_pwm  = 0;
+            right_pwm = LINE_TURN_PWM;
 #else
-            left_pwm  = LINE_FAST_PWM;
-            right_pwm = LINE_SLOW_PWM;
+            left_pwm  = LINE_TURN_PWM;
+            right_pwm = 0;
 #endif
         }
         else if (line_l_black && line_r_black)
         {
-            /* 兩顆都黑：可能是粗線或交叉線，慢慢直走 */
+            /*
+              兩顆都看到黑線：
+              可能是粗線、交叉線或轉彎入口，先慢速直走。
+            */
             left_pwm  = LINE_BOTH_BLACK_PWM;
             right_pwm = LINE_BOTH_BLACK_PWM;
         }
@@ -822,8 +837,8 @@ void Line_Only_Control(void)
         {
             /*
               兩顆都白：
-              正常直線時代表黑線在兩顆中間，所以慢速直走。
-              但如果剛剛才看過左/右黑線，代表可能衝過線，短時間繼續救回。
+              若黑線在兩顆感測器中間，表示目前在線上，直走。
+              若剛剛才偵測到左/右黑線，短時間用慢速轉彎救回。
             */
             if ((now - last_line_time) < LINE_RECOVER_MS)
             {
@@ -872,10 +887,6 @@ void Line_Only_Control(void)
         left_pwm = Limit_Int32(left_pwm, MOTOR_OUT_MAX);
         right_pwm = Limit_Int32(right_pwm, MOTOR_OUT_MAX);
 
-        /*
-          循跡測試要反應快，所以 PWM_STEP_LIMIT 已改大，
-          Smooth_PWM 幾乎等於直接輸出。
-        */
         left_pwm = Smooth_PWM(left_pwm, &last_left_pwm);
         right_pwm = Smooth_PWM(right_pwm, &last_right_pwm);
 
@@ -888,7 +899,7 @@ void Line_Only_Control(void)
     {
         last_debug_time = HAL_GetTick();
 
-        printf("LINE rawL=%d rawR=%d lineL=%d lineR=%d state=%d enable=%d last=%d L=%ld R=%ld\r\n",
+        printf("LINE_SLOW rawL=%d rawR=%d lineL=%d lineR=%d state=%d enable=%d last=%d L=%ld R=%ld\r\n",
                line_l_raw,
                line_r_raw,
                line_l_black,

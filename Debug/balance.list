@@ -7,23 +7,23 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, ALLOC, LOAD, READONLY, DATA
   1 .text         00005f0c  080001a0  080001a0  000101a0  2**4
                   CONTENTS, ALLOC, LOAD, READONLY, CODE
-  2 .rodata       00000334  080060ac  080060ac  000160ac  2**2
+  2 .rodata       00000338  080060ac  080060ac  000160ac  2**2
                   CONTENTS, ALLOC, LOAD, READONLY, DATA
-  3 .ARM.extab    00000000  080063e0  080063e0  00020070  2**0
+  3 .ARM.extab    00000000  080063e4  080063e4  00020070  2**0
                   CONTENTS
-  4 .ARM          00000008  080063e0  080063e0  000163e0  2**2
+  4 .ARM          00000008  080063e4  080063e4  000163e4  2**2
                   CONTENTS, ALLOC, LOAD, READONLY, DATA
-  5 .preinit_array 00000000  080063e8  080063e8  00020070  2**0
+  5 .preinit_array 00000000  080063ec  080063ec  00020070  2**0
                   CONTENTS, ALLOC, LOAD, DATA
-  6 .init_array   00000004  080063e8  080063e8  000163e8  2**2
+  6 .init_array   00000004  080063ec  080063ec  000163ec  2**2
                   CONTENTS, ALLOC, LOAD, DATA
-  7 .fini_array   00000004  080063ec  080063ec  000163ec  2**2
+  7 .fini_array   00000004  080063f0  080063f0  000163f0  2**2
                   CONTENTS, ALLOC, LOAD, DATA
-  8 .data         00000070  20000000  080063f0  00020000  2**2
+  8 .data         00000070  20000000  080063f4  00020000  2**2
                   CONTENTS, ALLOC, LOAD, DATA
-  9 .bss          000001d4  20000070  08006460  00020070  2**2
+  9 .bss          000001d4  20000070  08006464  00020070  2**2
                   ALLOC
- 10 ._user_heap_stack 00000604  20000244  08006460  00020244  2**0
+ 10 ._user_heap_stack 00000604  20000244  08006464  00020244  2**0
                   ALLOC
  11 .ARM.attributes 00000030  00000000  00000000  00020070  2**0
                   CONTENTS, READONLY
@@ -35,15 +35,15 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  15 .debug_ranges 000011f8  00000000  00000000  000384e0  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_macro  0002457b  00000000  00000000  000396d8  2**0
+ 16 .debug_macro  00024585  00000000  00000000  000396d8  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_line   00015764  00000000  00000000  0005dc53  2**0
+ 17 .debug_line   00015764  00000000  00000000  0005dc5d  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    000dedd1  00000000  00000000  000733b7  2**0
+ 18 .debug_str    000dede0  00000000  00000000  000733c1  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000050  00000000  00000000  00152188  2**0
+ 19 .comment      00000050  00000000  00000000  001521a1  2**0
                   CONTENTS, READONLY
- 20 .debug_frame  000058c4  00000000  00000000  001521d8  2**2
+ 20 .debug_frame  000058c4  00000000  00000000  001521f4  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -1025,7 +1025,7 @@ void Line_Only_Control(void)
  8000914:	2b00      	cmp	r3, #0
  8000916:	d003      	beq.n	8000920 <Line_Only_Control+0x70>
         {
-            printf("LINE FOLLOW START - POSITIVE ONLY VERSION\r\n");
+            printf("LINE FOLLOW START - SLOW TURN VERSION\r\n");
  8000918:	4884      	ldr	r0, [pc, #528]	; (8000b2c <Line_Only_Control+0x27c>)
  800091a:	f004 fc3d 	bl	8005198 <puts>
  800091e:	e004      	b.n	800092a <Line_Only_Control+0x7a>
@@ -1091,7 +1091,10 @@ void Line_Only_Control(void)
  800096e:	2b00      	cmp	r3, #0
  8000970:	d10c      	bne.n	800098c <Line_Only_Control+0xdc>
         {
-            /* 線在左邊：立刻往左修 */
+            /*
+              左邊看到黑線：
+              左輪停止、右輪慢轉，讓車慢慢往左修正
+            */
             last_turn_dir = -1;
  8000972:	4b6c      	ldr	r3, [pc, #432]	; (8000b24 <Line_Only_Control+0x274>)
  8000974:	22ff      	movs	r2, #255	; 0xff
@@ -1102,16 +1105,16 @@ void Line_Only_Control(void)
  800097c:	6013      	str	r3, [r2, #0]
 
 #if LINE_REVERSE_STEER
-            left_pwm  = LINE_FAST_PWM;
-            right_pwm = LINE_SLOW_PWM;
+            left_pwm  = LINE_TURN_PWM;
+            right_pwm = 0;
 #else
-            left_pwm  = LINE_SLOW_PWM;
+            left_pwm  = 0;
  800097e:	4b65      	ldr	r3, [pc, #404]	; (8000b14 <Line_Only_Control+0x264>)
- 8000980:	2223      	movs	r2, #35	; 0x23
+ 8000980:	2200      	movs	r2, #0
  8000982:	601a      	str	r2, [r3, #0]
-            right_pwm = LINE_FAST_PWM;
+            right_pwm = LINE_TURN_PWM;
  8000984:	4b64      	ldr	r3, [pc, #400]	; (8000b18 <Line_Only_Control+0x268>)
- 8000986:	2273      	movs	r2, #115	; 0x73
+ 8000986:	223c      	movs	r2, #60	; 0x3c
  8000988:	601a      	str	r2, [r3, #0]
  800098a:	e04f      	b.n	8000a2c <Line_Only_Control+0x17c>
 #endif
@@ -1126,7 +1129,10 @@ void Line_Only_Control(void)
  8000998:	2b00      	cmp	r3, #0
  800099a:	d00c      	beq.n	80009b6 <Line_Only_Control+0x106>
         {
-            /* 線在右邊：立刻往右修 */
+            /*
+              右邊看到黑線：
+              右輪停止、左輪慢轉，讓車慢慢往右修正
+            */
             last_turn_dir = 1;
  800099c:	4b61      	ldr	r3, [pc, #388]	; (8000b24 <Line_Only_Control+0x274>)
  800099e:	2201      	movs	r2, #1
@@ -1137,16 +1143,16 @@ void Line_Only_Control(void)
  80009a6:	6013      	str	r3, [r2, #0]
 
 #if LINE_REVERSE_STEER
-            left_pwm  = LINE_SLOW_PWM;
-            right_pwm = LINE_FAST_PWM;
+            left_pwm  = 0;
+            right_pwm = LINE_TURN_PWM;
 #else
-            left_pwm  = LINE_FAST_PWM;
+            left_pwm  = LINE_TURN_PWM;
  80009a8:	4b5a      	ldr	r3, [pc, #360]	; (8000b14 <Line_Only_Control+0x264>)
- 80009aa:	2273      	movs	r2, #115	; 0x73
+ 80009aa:	223c      	movs	r2, #60	; 0x3c
  80009ac:	601a      	str	r2, [r3, #0]
-            right_pwm = LINE_SLOW_PWM;
+            right_pwm = 0;
  80009ae:	4b5a      	ldr	r3, [pc, #360]	; (8000b18 <Line_Only_Control+0x268>)
- 80009b0:	2223      	movs	r2, #35	; 0x23
+ 80009b0:	2200      	movs	r2, #0
  80009b2:	601a      	str	r2, [r3, #0]
  80009b4:	e03a      	b.n	8000a2c <Line_Only_Control+0x17c>
 #endif
@@ -1161,20 +1167,23 @@ void Line_Only_Control(void)
  80009c2:	2b00      	cmp	r3, #0
  80009c4:	d006      	beq.n	80009d4 <Line_Only_Control+0x124>
         {
-            /* 兩顆都黑：可能是粗線或交叉線，慢慢直走 */
+            /*
+              兩顆都看到黑線：
+              可能是粗線、交叉線或轉彎入口，先慢速直走。
+            */
             left_pwm  = LINE_BOTH_BLACK_PWM;
  80009c6:	4b53      	ldr	r3, [pc, #332]	; (8000b14 <Line_Only_Control+0x264>)
- 80009c8:	222d      	movs	r2, #45	; 0x2d
+ 80009c8:	2219      	movs	r2, #25
  80009ca:	601a      	str	r2, [r3, #0]
             right_pwm = LINE_BOTH_BLACK_PWM;
  80009cc:	4b52      	ldr	r3, [pc, #328]	; (8000b18 <Line_Only_Control+0x268>)
- 80009ce:	222d      	movs	r2, #45	; 0x2d
+ 80009ce:	2219      	movs	r2, #25
  80009d0:	601a      	str	r2, [r3, #0]
  80009d2:	e02b      	b.n	8000a2c <Line_Only_Control+0x17c>
             /*
               兩顆都白：
-              正常直線時代表黑線在兩顆中間，所以慢速直走。
-              但如果剛剛才看過左/右黑線，代表可能衝過線，短時間繼續救回。
+              若黑線在兩顆感測器中間，表示目前在線上，直走。
+              若剛剛才偵測到左/右黑線，短時間用慢速轉彎救回。
             */
             if ((now - last_line_time) < LINE_RECOVER_MS)
  80009d4:	4b54      	ldr	r3, [pc, #336]	; (8000b28 <Line_Only_Control+0x278>)
@@ -1200,7 +1209,7 @@ void Line_Only_Control(void)
  80009f0:	601a      	str	r2, [r3, #0]
                     right_pwm = LINE_RECOVER_PWM;
  80009f2:	4b49      	ldr	r3, [pc, #292]	; (8000b18 <Line_Only_Control+0x268>)
- 80009f4:	225f      	movs	r2, #95	; 0x5f
+ 80009f4:	222d      	movs	r2, #45	; 0x2d
  80009f6:	601a      	str	r2, [r3, #0]
  80009f8:	e018      	b.n	8000a2c <Line_Only_Control+0x17c>
 #endif
@@ -1217,7 +1226,7 @@ void Line_Only_Control(void)
 #else
                     left_pwm  = LINE_RECOVER_PWM;
  8000a04:	4b43      	ldr	r3, [pc, #268]	; (8000b14 <Line_Only_Control+0x264>)
- 8000a06:	225f      	movs	r2, #95	; 0x5f
+ 8000a06:	222d      	movs	r2, #45	; 0x2d
  8000a08:	601a      	str	r2, [r3, #0]
                     right_pwm = 0;
  8000a0a:	4b43      	ldr	r3, [pc, #268]	; (8000b18 <Line_Only_Control+0x268>)
@@ -1230,11 +1239,11 @@ void Line_Only_Control(void)
                 {
                     left_pwm  = BASE_FORWARD_PWM;
  8000a12:	4b40      	ldr	r3, [pc, #256]	; (8000b14 <Line_Only_Control+0x264>)
- 8000a14:	222d      	movs	r2, #45	; 0x2d
+ 8000a14:	2228      	movs	r2, #40	; 0x28
  8000a16:	601a      	str	r2, [r3, #0]
                     right_pwm = BASE_FORWARD_PWM;
  8000a18:	4b3f      	ldr	r3, [pc, #252]	; (8000b18 <Line_Only_Control+0x268>)
- 8000a1a:	222d      	movs	r2, #45	; 0x2d
+ 8000a1a:	2228      	movs	r2, #40	; 0x28
  8000a1c:	601a      	str	r2, [r3, #0]
  8000a1e:	e005      	b.n	8000a2c <Line_Only_Control+0x17c>
             {
@@ -1244,11 +1253,11 @@ void Line_Only_Control(void)
 #else
                 left_pwm  = BASE_FORWARD_PWM;
  8000a20:	4b3c      	ldr	r3, [pc, #240]	; (8000b14 <Line_Only_Control+0x264>)
- 8000a22:	222d      	movs	r2, #45	; 0x2d
+ 8000a22:	2228      	movs	r2, #40	; 0x28
  8000a24:	601a      	str	r2, [r3, #0]
                 right_pwm = BASE_FORWARD_PWM;
  8000a26:	4b3c      	ldr	r3, [pc, #240]	; (8000b18 <Line_Only_Control+0x268>)
- 8000a28:	222d      	movs	r2, #45	; 0x2d
+ 8000a28:	2228      	movs	r2, #40	; 0x28
  8000a2a:	601a      	str	r2, [r3, #0]
 #endif
             }
@@ -1285,10 +1294,6 @@ void Line_Only_Control(void)
  8000a60:	4a2d      	ldr	r2, [pc, #180]	; (8000b18 <Line_Only_Control+0x268>)
  8000a62:	6013      	str	r3, [r2, #0]
 
-        /*
-          循跡測試要反應快，所以 PWM_STEP_LIMIT 已改大，
-          Smooth_PWM 幾乎等於直接輸出。
-        */
         left_pwm = Smooth_PWM(left_pwm, &last_left_pwm);
  8000a64:	4b2b      	ldr	r3, [pc, #172]	; (8000b14 <Line_Only_Control+0x264>)
  8000a66:	681b      	ldr	r3, [r3, #0]
@@ -1335,7 +1340,7 @@ void Line_Only_Control(void)
  8000aae:	4a24      	ldr	r2, [pc, #144]	; (8000b40 <Line_Only_Control+0x290>)
  8000ab0:	6013      	str	r3, [r2, #0]
 
-        printf("LINE rawL=%d rawR=%d lineL=%d lineR=%d state=%d enable=%d last=%d L=%ld R=%ld\r\n",
+        printf("LINE_SLOW rawL=%d rawR=%d lineL=%d lineR=%d state=%d enable=%d last=%d L=%ld R=%ld\r\n",
  8000ab2:	4b24      	ldr	r3, [pc, #144]	; (8000b44 <Line_Only_Control+0x294>)
  8000ab4:	781b      	ldrb	r3, [r3, #0]
  8000ab6:	461e      	mov	r6, r3
@@ -1392,14 +1397,14 @@ void Line_Only_Control(void)
  8000b24:	2000021d 	.word	0x2000021d
  8000b28:	20000220 	.word	0x20000220
  8000b2c:	0800613c 	.word	0x0800613c
- 8000b30:	08006168 	.word	0x08006168
+ 8000b30:	08006164 	.word	0x08006164
  8000b34:	20000202 	.word	0x20000202
  8000b38:	20000204 	.word	0x20000204
  8000b3c:	20000205 	.word	0x20000205
  8000b40:	20000224 	.word	0x20000224
  8000b44:	20000206 	.word	0x20000206
  8000b48:	20000207 	.word	0x20000207
- 8000b4c:	0800617c 	.word	0x0800617c
+ 8000b4c:	08006178 	.word	0x08006178
 
 08000b50 <HAL_TIM_PeriodElapsedCallback>:
                mpu_last_status);
@@ -1530,8 +1535,8 @@ int main(void)
  8000be6:	bf00      	nop
  8000be8:	48000400 	.word	0x48000400
  8000bec:	2000012c 	.word	0x2000012c
- 8000bf0:	080062c0 	.word	0x080062c0
- 8000bf4:	080062f0 	.word	0x080062f0
+ 8000bf0:	080062c4 	.word	0x080062c4
+ 8000bf4:	080062f4 	.word	0x080062f4
  8000bf8:	20000228 	.word	0x20000228
 
 08000bfc <SystemClock_Config>:
@@ -3281,7 +3286,7 @@ LoopForever:
   ldr r1, =_edata
  80014e4:	20000070 	.word	0x20000070
   ldr r2, =_sidata
- 80014e8:	080063f0 	.word	0x080063f0
+ 80014e8:	080063f4 	.word	0x080063f4
   ldr r2, =_sbss
  80014ec:	20000070 	.word	0x20000070
   ldr r4, =_ebss
@@ -5500,7 +5505,7 @@ HAL_StatusTypeDef HAL_RCC_OscConfig(RCC_OscInitTypeDef  *RCC_OscInitStruct)
  8002148:	6013      	str	r3, [r2, #0]
  800214a:	e013      	b.n	8002174 <HAL_RCC_OscConfig+0x298>
  800214c:	40021000 	.word	0x40021000
- 8002150:	08006300 	.word	0x08006300
+ 8002150:	08006304 	.word	0x08006304
  8002154:	20000000 	.word	0x20000000
  8002158:	20000004 	.word	0x20000004
  800215c:	4ba0      	ldr	r3, [pc, #640]	; (80023e0 <HAL_RCC_OscConfig+0x504>)
@@ -6890,7 +6895,7 @@ HAL_StatusTypeDef HAL_RCC_ClockConfig(const RCC_ClkInitTypeDef  *RCC_ClkInitStru
  80028ee:	bd80      	pop	{r7, pc}
  80028f0:	40022000 	.word	0x40022000
  80028f4:	40021000 	.word	0x40021000
- 80028f8:	08006300 	.word	0x08006300
+ 80028f8:	08006304 	.word	0x08006304
  80028fc:	20000000 	.word	0x20000000
  8002900:	20000004 	.word	0x20000004
 
@@ -7095,7 +7100,7 @@ uint32_t HAL_RCC_GetSysClockFreq(void)
  8002a08:	4770      	bx	lr
  8002a0a:	bf00      	nop
  8002a0c:	40021000 	.word	0x40021000
- 8002a10:	08006318 	.word	0x08006318
+ 8002a10:	0800631c 	.word	0x0800631c
  8002a14:	00f42400 	.word	0x00f42400
  8002a18:	007a1200 	.word	0x007a1200
 
@@ -7144,7 +7149,7 @@ uint32_t HAL_RCC_GetPCLK1Freq(void)
  8002a54:	4618      	mov	r0, r3
  8002a56:	bd80      	pop	{r7, pc}
  8002a58:	40021000 	.word	0x40021000
- 8002a5c:	08006310 	.word	0x08006310
+ 8002a5c:	08006314 	.word	0x08006314
 
 08002a60 <HAL_RCC_GetPCLK2Freq>:
   * @note   Each time PCLK2 changes, this function must be called to update the
@@ -7171,7 +7176,7 @@ uint32_t HAL_RCC_GetPCLK2Freq(void)
  8002a80:	4618      	mov	r0, r3
  8002a82:	bd80      	pop	{r7, pc}
  8002a84:	40021000 	.word	0x40021000
- 8002a88:	08006310 	.word	0x08006310
+ 8002a88:	08006314 	.word	0x08006314
 
 08002a8c <RCC_SetFlashLatencyFromMSIRange>:
             voltage range.
@@ -13883,10 +13888,10 @@ static void UART_EndRxTransfer(UART_HandleTypeDef *huart)
  8005066:	4798      	blx	r3
  8005068:	3601      	adds	r6, #1
  800506a:	e7f2      	b.n	8005052 <__libc_init_array+0x1e>
- 800506c:	080063e8 	.word	0x080063e8
- 8005070:	080063e8 	.word	0x080063e8
- 8005074:	080063e8 	.word	0x080063e8
- 8005078:	080063ec 	.word	0x080063ec
+ 800506c:	080063ec 	.word	0x080063ec
+ 8005070:	080063ec 	.word	0x080063ec
+ 8005074:	080063ec 	.word	0x080063ec
+ 8005078:	080063f0 	.word	0x080063f0
 
 0800507c <memset>:
  800507c:	4402      	add	r2, r0
@@ -14015,9 +14020,9 @@ static void UART_EndRxTransfer(UART_HandleTypeDef *huart)
  8005186:	6022      	str	r2, [r4, #0]
  8005188:	701d      	strb	r5, [r3, #0]
  800518a:	e7db      	b.n	8005144 <_puts_r+0x88>
- 800518c:	0800636c 	.word	0x0800636c
- 8005190:	0800638c 	.word	0x0800638c
- 8005194:	0800634c 	.word	0x0800634c
+ 800518c:	08006370 	.word	0x08006370
+ 8005190:	08006390 	.word	0x08006390
+ 8005194:	08006350 	.word	0x08006350
 
 08005198 <puts>:
  8005198:	4b02      	ldr	r3, [pc, #8]	; (80051a4 <puts+0xc>)
@@ -14099,9 +14104,9 @@ static void UART_EndRxTransfer(UART_HandleTypeDef *huart)
  8005238:	f04f 37ff 	mov.w	r7, #4294967295
  800523c:	e7ea      	b.n	8005214 <__swbuf_r+0x6c>
  800523e:	bf00      	nop
- 8005240:	0800636c 	.word	0x0800636c
- 8005244:	0800638c 	.word	0x0800638c
- 8005248:	0800634c 	.word	0x0800634c
+ 8005240:	08006370 	.word	0x08006370
+ 8005244:	08006390 	.word	0x08006390
+ 8005248:	08006350 	.word	0x08006350
 
 0800524c <__swsetup_r>:
  800524c:	4b32      	ldr	r3, [pc, #200]	; (8005318 <__swsetup_r+0xcc>)
@@ -14193,9 +14198,9 @@ static void UART_EndRxTransfer(UART_HandleTypeDef *huart)
  8005314:	e7f7      	b.n	8005306 <__swsetup_r+0xba>
  8005316:	bf00      	nop
  8005318:	2000000c 	.word	0x2000000c
- 800531c:	0800636c 	.word	0x0800636c
- 8005320:	0800638c 	.word	0x0800638c
- 8005324:	0800634c 	.word	0x0800634c
+ 800531c:	08006370 	.word	0x08006370
+ 8005320:	08006390 	.word	0x08006390
+ 8005324:	08006350 	.word	0x08006350
 
 08005328 <__sflush_r>:
  8005328:	898a      	ldrh	r2, [r1, #12]
@@ -14371,9 +14376,9 @@ static void UART_EndRxTransfer(UART_HandleTypeDef *huart)
  800549a:	bf08      	it	eq
  800549c:	68ec      	ldreq	r4, [r5, #12]
  800549e:	e7da      	b.n	8005456 <_fflush_r+0x22>
- 80054a0:	0800636c 	.word	0x0800636c
- 80054a4:	0800638c 	.word	0x0800638c
- 80054a8:	0800634c 	.word	0x0800634c
+ 80054a0:	08006370 	.word	0x08006370
+ 80054a4:	08006390 	.word	0x08006390
+ 80054a8:	08006350 	.word	0x08006350
 
 080054ac <std>:
  80054ac:	2300      	movs	r3, #0
@@ -14498,7 +14503,7 @@ static void UART_EndRxTransfer(UART_HandleTypeDef *huart)
  80055be:	61a3      	str	r3, [r4, #24]
  80055c0:	e7d2      	b.n	8005568 <__sinit+0xc>
  80055c2:	bf00      	nop
- 80055c4:	08006348 	.word	0x08006348
+ 80055c4:	0800634c 	.word	0x0800634c
  80055c8:	080054f5 	.word	0x080054f5
 
 080055cc <__sfp>:
@@ -14553,7 +14558,7 @@ static void UART_EndRxTransfer(UART_HandleTypeDef *huart)
  800564a:	603b      	str	r3, [r7, #0]
  800564c:	e7ee      	b.n	800562c <__sfp+0x60>
  800564e:	bf00      	nop
- 8005650:	08006348 	.word	0x08006348
+ 8005650:	0800634c 	.word	0x0800634c
  8005654:	ffff0001 	.word	0xffff0001
 
 08005658 <_fwalk_reent>:
@@ -15165,14 +15170,14 @@ static void UART_EndRxTransfer(UART_HandleTypeDef *huart)
  8005bb4:	f000 f880 	bl	8005cb8 <_printf_i>
  8005bb8:	e7e4      	b.n	8005b84 <_vfiprintf_r+0x208>
  8005bba:	bf00      	nop
- 8005bbc:	0800636c 	.word	0x0800636c
- 8005bc0:	0800638c 	.word	0x0800638c
- 8005bc4:	0800634c 	.word	0x0800634c
- 8005bc8:	080063ac 	.word	0x080063ac
- 8005bcc:	080063b6 	.word	0x080063b6
+ 8005bbc:	08006370 	.word	0x08006370
+ 8005bc0:	08006390 	.word	0x08006390
+ 8005bc4:	08006350 	.word	0x08006350
+ 8005bc8:	080063b0 	.word	0x080063b0
+ 8005bcc:	080063ba 	.word	0x080063ba
  8005bd0:	00000000 	.word	0x00000000
  8005bd4:	08005957 	.word	0x08005957
- 8005bd8:	080063b2 	.word	0x080063b2
+ 8005bd8:	080063b6 	.word	0x080063b6
 
 08005bdc <_printf_common>:
  8005bdc:	e92d 47f0 	stmdb	sp!, {r4, r5, r6, r7, r8, r9, sl, lr}
@@ -15508,8 +15513,8 @@ static void UART_EndRxTransfer(UART_HandleTypeDef *huart)
  8005ef4:	f104 0619 	add.w	r6, r4, #25
  8005ef8:	e7f5      	b.n	8005ee6 <_printf_i+0x22e>
  8005efa:	bf00      	nop
- 8005efc:	080063bd 	.word	0x080063bd
- 8005f00:	080063ce 	.word	0x080063ce
+ 8005efc:	080063c1 	.word	0x080063c1
+ 8005f00:	080063d2 	.word	0x080063d2
 
 08005f04 <_sbrk_r>:
  8005f04:	b538      	push	{r3, r4, r5, lr}
