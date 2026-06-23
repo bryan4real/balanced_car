@@ -81,7 +81,7 @@
 
 /* 沒有編碼器時，用一點點前進 PWM 讓車子沿線慢慢走。
    如果平衡還不穩，先改成 0。 */
-#define BASE_FORWARD_PWM     22
+#define BASE_FORWARD_PWM     40
 
 /* 實用循跡模式參數：
    兩顆 TCRT5000 放在黑線左右兩側時：

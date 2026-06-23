@@ -1230,11 +1230,11 @@ void Line_Only_Control(void)
                 {
                     left_pwm  = BASE_FORWARD_PWM;
  8000a14:	4b3c      	ldr	r3, [pc, #240]	; (8000b08 <Line_Only_Control+0x258>)
- 8000a16:	2216      	movs	r2, #22
+ 8000a16:	2228      	movs	r2, #40	; 0x28
  8000a18:	601a      	str	r2, [r3, #0]
                     right_pwm = BASE_FORWARD_PWM;
  8000a1a:	4b3c      	ldr	r3, [pc, #240]	; (8000b0c <Line_Only_Control+0x25c>)
- 8000a1c:	2216      	movs	r2, #22
+ 8000a1c:	2228      	movs	r2, #40	; 0x28
  8000a1e:	601a      	str	r2, [r3, #0]
  8000a20:	e005      	b.n	8000a2e <Line_Only_Control+0x17e>
             {
@@ -1244,11 +1244,11 @@ void Line_Only_Control(void)
 #else
                 left_pwm  = BASE_FORWARD_PWM;
  8000a22:	4b39      	ldr	r3, [pc, #228]	; (8000b08 <Line_Only_Control+0x258>)
- 8000a24:	2216      	movs	r2, #22
+ 8000a24:	2228      	movs	r2, #40	; 0x28
  8000a26:	601a      	str	r2, [r3, #0]
                 right_pwm = BASE_FORWARD_PWM;
  8000a28:	4b38      	ldr	r3, [pc, #224]	; (8000b0c <Line_Only_Control+0x25c>)
- 8000a2a:	2216      	movs	r2, #22
+ 8000a2a:	2228      	movs	r2, #40	; 0x28
  8000a2c:	601a      	str	r2, [r3, #0]
 #endif
             }
