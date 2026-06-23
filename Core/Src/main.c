@@ -47,7 +47,7 @@
 
 /* 馬達保護參數：TIM15 Period = 999，所以 PWM 建議控制在 0~999 內 */
 #define PWM_RUN_LIMIT       420
-#define MOTOR_MIN_PWM       70
+#define MOTOR_MIN_PWM       95
 #define PWM_DEAD_ZONE       2
 #define PWM_STEP_LIMIT      999
 #define MOTOR_OUT_MAX       PWM_RUN_LIMIT
@@ -81,7 +81,7 @@
 
 /* 沒有編碼器時，用一點點前進 PWM 讓車子沿線慢慢走。
    如果平衡還不穩，先改成 0。 */
-#define BASE_FORWARD_PWM     40
+#define BASE_FORWARD_PWM     45
 
 /* 實用循跡模式參數：
    兩顆 TCRT5000 放在黑線左右兩側時：
@@ -90,9 +90,9 @@
    - 右黑：線偏右，左輪快、右輪慢
    - 兩顆都黑：交叉線/粗線，慢速直走
 */
-#define LINE_SLOW_PWM        -10
-#define LINE_FAST_PWM        55
-#define LINE_BOTH_BLACK_PWM  20
+#define LINE_SLOW_PWM        35
+#define LINE_FAST_PWM        115
+#define LINE_BOTH_BLACK_PWM  45
 
 /* 0：兩顆都白時直走，適合兩顆感測器夾著黑線
    1：兩顆都白時停止，適合測試感測器用 */
@@ -101,11 +101,14 @@
 /* 如果左黑卻往右修、右黑卻往左修，把 0 改成 1 */
 #define LINE_REVERSE_STEER   0
 
+/* 車子整體前後方向反了就改這裡：1=正常，-1=前後反向 */
+#define LINE_FORWARD_SIGN    1
+
 /* 掉線短暫救回：
    偵測到左/右黑線後，如果瞬間又變成兩顆都白，
    代表可能已經衝過邊界，短時間繼續往剛才方向修正。 */
-#define LINE_RECOVER_PWM     45
-#define LINE_RECOVER_MS      250
+#define LINE_RECOVER_PWM     95
+#define LINE_RECOVER_MS      300
 
 /* 你的車最多 ±10 度，測試時先給 20 度保護 */
 #define ANGLE_STOP_LIMIT    25.0f
@@ -729,7 +732,7 @@ void Line_Only_Control(void)
     /*
       反應加快版循跡：
       - 前進速度降低
-      - 偵測到偏左/偏右時，內側輪可小幅反轉，轉向更快
+      - 偵測到偏左/偏右時，內側輪保持低速正轉，避免某一輪反轉通道不正常導致不動
       - 兩顆都白時，不是一直高速直衝，而是慢速前進
       - 剛剛才看到左/右線，接著變兩顆都白時，短時間繼續往同方向救回
     */
@@ -756,7 +759,7 @@ void Line_Only_Control(void)
 
         if (motor_enable)
         {
-            printf("LINE FOLLOW START\r\n");
+            printf("LINE FOLLOW START - POSITIVE ONLY VERSION\r\n");
         }
         else
         {
@@ -861,6 +864,10 @@ void Line_Only_Control(void)
 #endif
             }
         }
+
+        /* 整台車前後方向修正 */
+        left_pwm  = LINE_FORWARD_SIGN * left_pwm;
+        right_pwm = LINE_FORWARD_SIGN * right_pwm;
 
         left_pwm = Limit_Int32(left_pwm, MOTOR_OUT_MAX);
         right_pwm = Limit_Int32(right_pwm, MOTOR_OUT_MAX);
