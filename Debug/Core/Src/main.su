@@ -15,7 +15,7 @@
 ../Core/Src/main.c:520:9:Smooth_PWM	16	static
 ../Core/Src/main.c:538:9:Get_Speed	4	static
 ../Core/Src/main.c:545:9:Get_Direction_Error	8	static
-../Core/Src/main.c:579:16:Angle_PID	40	static
+../Core/Src/main.c:579:16:Angle_PID	32	static
 ../Core/Src/main.c:589:9:Angle_Proc	8	static
 ../Core/Src/main.c:596:16:Velocity_PID	32	static
 ../Core/Src/main.c:622:9:Velocity_Proc	24	static

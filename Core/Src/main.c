@@ -172,9 +172,9 @@ float gyro_offset = 0.0f;
 float angle = 0.0f;
 float balance_offset = 0.0f;
 
-float Kp = 26.0f;
+float Kp = 50.0f;
 float Ki = 0.0f;
-float Kd = 3.2f;
+float Kd = 2.5f;
 
 float integral = 0.0f;
 
@@ -583,7 +583,7 @@ static int32_t Angle_PID(float set, float nextPoint)
     float P = Kp * error;
     float D = Kd * gyro_balance;
 
-    return (int32_t)(P*1.5 - D);
+    return (int32_t)(P - D);
 }
 
 int32_t Angle_Proc(void)
